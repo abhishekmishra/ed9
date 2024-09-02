@@ -3,6 +3,8 @@
 -- author: Abhishek Mishra
 -- date: 02/09/2024
 
+local Class = require'middleclass'
+
 local cw, ch
 local titleText = "ED9: Programmer's Editor"
 local titleWidth, titleHeight
