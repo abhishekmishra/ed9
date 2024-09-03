@@ -185,7 +185,6 @@ int get_window_size(int *rows, int *cols)
 {
   struct winsize ws;
 
-  // TODO remove the 1 || condition
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
   {
     /*
