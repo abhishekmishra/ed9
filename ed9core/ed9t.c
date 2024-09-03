@@ -288,6 +288,9 @@ void editor_draw_rows(AppendBuffer *ab)
   {
     ab_append(ab, "~", 1);
 
+    /* clear the line with the K command and argument 0 */
+    ab_append(ab, "\x1b[K", 3);
+    
     /* write the crlf for all but the last line */
     if (y < E.screenrows - 1)
     {
@@ -306,7 +309,7 @@ void editor_refresh_screen()
   /* hide the cursor using ?25l */
   ab_append(&ab, "\x1b[?25l", 6);
   /* clear the screen with the J command and argument 2 */
-  ab_append(&ab, "\x1b[2J", 4);
+  // ab_append(&ab, "\x1b[2J", 4);
   /* reposition the cursor to the top left with the H command */
   ab_append(&ab, "\x1b[H", 3);
 
