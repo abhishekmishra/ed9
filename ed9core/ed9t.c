@@ -27,7 +27,15 @@ that sets the first 3 bits to 0
 #include <unistd.h>
 
 /*** DATA ***/
-struct termios orig_termios;
+
+/* type for global state of the editor */
+typedef struct
+{
+  struct termios orig_termios;
+} EditorConfig;
+
+/* global editor configuration */
+EditorConfig E;
 
 /*** TERMINAL ***/
 void die(const char *s)
@@ -41,24 +49,30 @@ void die(const char *s)
   exit(1);
 }
 
+/**
+ * @brief Disable the raw mode for the terminal
+ */
 void disable_raw_mode()
 {
-  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &orig_termios) == -1)
+  if (tcsetattr(STDIN_FILENO, TCSAFLUSH, &E.orig_termios) == -1)
   {
     die("tcsetattr");
   }
 }
 
+/**
+ * @brief Enable the raw mode for the terminal
+ */
 void enable_raw_mode()
 {
-  if (tcgetattr(STDIN_FILENO, &orig_termios) == -1)
+  if (tcgetattr(STDIN_FILENO, &E.orig_termios) == -1)
   {
     die("tcgetattr");
   }
 
   atexit(disable_raw_mode);
 
-  struct termios raw = orig_termios;
+  struct termios raw = E.orig_termios;
 
   /* turn off ctrl-s and ctrl-q (IXON) */
   /* turn off enter to newline (ICRNL) */
