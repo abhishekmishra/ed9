@@ -9,6 +9,15 @@
  *
  */
 
+/*** DEFINES ***/
+
+/*
+define a macro to create the effect of CTRL+key
+using a bitmask with the value of the key
+that sets the first 3 bits to 0
+*/
+#define CTRL_KEY(k) ((k) & 0x1f)
+
 /*** INCLUDES ***/
 #include <ctype.h>
 #include <errno.h>
@@ -93,8 +102,10 @@ int main()
     {
       printf("%d ('%c')\r\n", c, c);
     }
-    if (c == 'q')
+    if (c == CTRL_KEY('q'))
+    {
       break;
+    }
   }
 
   return 0;
