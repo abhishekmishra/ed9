@@ -122,6 +122,53 @@ char editor_read_key()
 }
 
 /**
+ * @brief Get the cursor position by using the value of the 'n' command
+ *
+ * @param rows pointer to the number of rows
+ * @param cols pointer to the number of columns
+ * @return int 0 if successful
+ */
+int get_cursor_position(int *rows, int *cols)
+{
+  /* buffer for the 'n' command return value */
+  char buf[32];
+  unsigned int i = 0;
+
+  /* use the n command */
+  if (write(STDOUT_FILENO, "\x1b[6n", 4) != 4)
+  {
+    return -1;
+  }
+
+  /* read the response of the command, which is a control sequence */
+  while (i < sizeof(buf) - 1)
+  {
+    if (read(STDIN_FILENO, &buf[i], 1) != 1)
+    {
+      break;
+    }
+    if (buf[i] == 'R')
+    {
+      break;
+    }
+    i++;
+  }
+  buf[i] = '\0';
+
+  /* parse the control sequence to get the cursor position */
+  if (buf[0] != '\x1b' || buf[1] != '[')
+  {
+    return -1;
+  }
+  if (sscanf(&buf[2], "%d;%d", rows, cols) != 2)
+  {
+    return -1;
+  }
+
+  return 0;
+}
+
+/**
  * @brief Get the window size of the terminal
  * and return the number of rows and columns
  * as values of the pointers passed to the function
@@ -138,9 +185,24 @@ int get_window_size(int *rows, int *cols)
 {
   struct winsize ws;
 
+  // TODO remove the 1 || condition
   if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
   {
-    return -1;
+    /*
+    use the B (down) and C (forward) cursor commands to move the cursor to the
+    bottom right of the window and then read the cursor position to get the
+    window size
+
+    we use a large number to ensure that the cursor is moved to the bottom right
+    but we don't use the H command as it is not documented to stay at the
+    edge of the screen.
+    */
+    if (write(STDOUT_FILENO, "\x1b[999C\x1b[999B", 12) != 12)
+    {
+      return -1;
+    }
+
+    return get_cursor_position(rows, cols);
   }
   else
   {
