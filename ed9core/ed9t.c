@@ -32,6 +32,11 @@ struct termios orig_termios;
 /*** TERMINAL ***/
 void die(const char *s)
 {
+  /* clear the screen with the J command and argument 2 */
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  /* reposition the cursor to the top left with the H command */
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
   perror(s);
   exit(1);
 }
@@ -112,9 +117,27 @@ void editor_process_keypress()
   switch (c)
   {
   case CTRL_KEY('q'):
+    /* clear the screen with the J command and argument 2 */
+    write(STDOUT_FILENO, "\x1b[2J", 4);
+    /* reposition the cursor to the top left with the H command */
+    write(STDOUT_FILENO, "\x1b[H", 3);
+
     exit(0);
     break;
   }
+}
+
+/*** OUTPUT ***/
+
+/**
+ * @brief Clear the screen so that the editor can be displayed
+ */
+void editor_refresh_screen()
+{
+  /* clear the screen with the J command and argument 2 */
+  write(STDOUT_FILENO, "\x1b[2J", 4);
+  /* reposition the cursor to the top left with the H command */
+  write(STDOUT_FILENO, "\x1b[H", 3);
 }
 
 /*** INIT ***/
@@ -125,6 +148,7 @@ int main()
 
   while (1)
   {
+    editor_refresh_screen();
     editor_process_keypress();
   }
 
