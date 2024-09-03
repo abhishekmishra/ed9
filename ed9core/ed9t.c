@@ -130,12 +130,28 @@ void editor_process_keypress()
 /*** OUTPUT ***/
 
 /**
+ * @brief Draw the rows of the editor
+ */
+void editor_draw_rows()
+{
+  for (int y = 0; y < 24; y++)
+  {
+    write(STDOUT_FILENO, "~\r\n", 3);
+  }
+}
+
+/**
  * @brief Clear the screen so that the editor can be displayed
  */
 void editor_refresh_screen()
 {
   /* clear the screen with the J command and argument 2 */
   write(STDOUT_FILENO, "\x1b[2J", 4);
+  /* reposition the cursor to the top left with the H command */
+  write(STDOUT_FILENO, "\x1b[H", 3);
+
+  editor_draw_rows();
+
   /* reposition the cursor to the top left with the H command */
   write(STDOUT_FILENO, "\x1b[H", 3);
 }
