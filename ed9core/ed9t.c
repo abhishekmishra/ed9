@@ -18,6 +18,9 @@ that sets the first 3 bits to 0
 */
 #define CTRL_KEY(k) ((k) & 0x1f)
 
+#define ED9T_WELCOME_MESSAGE "ED9T -- version %s"
+#define ED9T_VERSION "0.1.0"
+
 /*** INCLUDES ***/
 #include <ctype.h>
 #include <errno.h>
@@ -290,7 +293,7 @@ void editor_draw_rows(AppendBuffer *ab)
 
     /* clear the line with the K command and argument 0 */
     ab_append(ab, "\x1b[K", 3);
-    
+
     /* write the crlf for all but the last line */
     if (y < E.screenrows - 1)
     {
