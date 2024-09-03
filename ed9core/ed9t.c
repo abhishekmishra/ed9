@@ -23,6 +23,7 @@ that sets the first 3 bits to 0
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 #include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
@@ -211,6 +212,46 @@ int get_window_size(int *rows, int *cols)
   }
 }
 
+/*** APPEND BUFFER ***/
+typedef struct
+{
+  char *b;
+  int len;
+} AppendBuffer;
+
+#define ABUF_INIT {NULL, 0}
+
+/**
+ * @brief Append a string to the append buffer
+ *
+ * @param ab pointer to the append buffer
+ * @param s string to append
+ * @param len length of the string
+ */
+void ab_append(AppendBuffer *ab, const char *s, int len)
+{
+  char *new = realloc(ab->b, ab->len + len);
+
+  if (new == NULL)
+  {
+    return;
+  }
+
+  memcpy(&new[ab->len], s, len);
+  ab->b = new;
+  ab->len += len;
+}
+
+/**
+ * @brief Free the memory used by the append buffer
+ *
+ * @param ab pointer to the append buffer
+ */
+void ab_free(AppendBuffer *ab)
+{
+  free(ab->b);
+}
+
 /*** INPUT ***/
 
 /**
@@ -238,17 +279,19 @@ void editor_process_keypress()
 
 /**
  * @brief Draw the rows of the editor
+ * 
+ * @param ab pointer to the append buffer
  */
-void editor_draw_rows()
+void editor_draw_rows(AppendBuffer *ab)
 {
   for (int y = 0; y < E.screenrows; y++)
   {
-    write(STDOUT_FILENO, "~", 1);
+    ab_append(ab, "~", 1);
 
     /* write the crlf for all but the last line */
     if (y < E.screenrows - 1)
     {
-      write(STDOUT_FILENO, "\r\n", 2);
+      ab_append(ab, "\r\n", 2);
     }
   }
 }
@@ -258,15 +301,21 @@ void editor_draw_rows()
  */
 void editor_refresh_screen()
 {
+  AppendBuffer ab = ABUF_INIT;
+
   /* clear the screen with the J command and argument 2 */
-  write(STDOUT_FILENO, "\x1b[2J", 4);
+  ab_append(&ab, "\x1b[2J", 4);
   /* reposition the cursor to the top left with the H command */
-  write(STDOUT_FILENO, "\x1b[H", 3);
+  ab_append(&ab, "\x1b[H", 3);
 
-  editor_draw_rows();
+  editor_draw_rows(&ab);
 
   /* reposition the cursor to the top left with the H command */
-  write(STDOUT_FILENO, "\x1b[H", 3);
+  ab_append(&ab, "\x1b[H", 3);
+
+  /* write the buffer to the terminal */
+  write(STDOUT_FILENO, ab.b, ab.len);
+  ab_free(&ab);
 }
 
 /*** INIT ***/
