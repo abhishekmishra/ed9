@@ -303,6 +303,8 @@ void editor_refresh_screen()
 {
   AppendBuffer ab = ABUF_INIT;
 
+  /* hide the cursor using ?25l */
+  ab_append(&ab, "\x1b[?25l", 6);
   /* clear the screen with the J command and argument 2 */
   ab_append(&ab, "\x1b[2J", 4);
   /* reposition the cursor to the top left with the H command */
@@ -312,6 +314,8 @@ void editor_refresh_screen()
 
   /* reposition the cursor to the top left with the H command */
   ab_append(&ab, "\x1b[H", 3);
+  /* show the cursor using ?25h */
+  ab_append(&ab, "\x1b[?25h", 6);
 
   /* write the buffer to the terminal */
   write(STDOUT_FILENO, ab.b, ab.len);
