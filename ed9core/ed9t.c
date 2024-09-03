@@ -23,6 +23,7 @@ that sets the first 3 bits to 0
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
+#include <sys/ioctl.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -31,6 +32,8 @@ that sets the first 3 bits to 0
 /* type for global state of the editor */
 typedef struct
 {
+  int screenrows;
+  int screencols;
   struct termios orig_termios;
 } EditorConfig;
 
@@ -118,6 +121,35 @@ char editor_read_key()
   return c;
 }
 
+/**
+ * @brief Get the window size of the terminal
+ * and return the number of rows and columns
+ * as values of the pointers passed to the function
+ * and return 0 if successful
+ *
+ * This uses the ioctl system call TIOCGWINSZ to get the window size
+ * and
+ *
+ * @param rows pointer to the number of rows
+ * @param cols pointer to the number of columns
+ * @return int 0 if successful
+ */
+int get_window_size(int *rows, int *cols)
+{
+  struct winsize ws;
+
+  if (ioctl(STDOUT_FILENO, TIOCGWINSZ, &ws) == -1 || ws.ws_col == 0)
+  {
+    return -1;
+  }
+  else
+  {
+    *cols = ws.ws_col;
+    *rows = ws.ws_row;
+    return 0;
+  }
+}
+
 /*** INPUT ***/
 
 /**
@@ -148,7 +180,7 @@ void editor_process_keypress()
  */
 void editor_draw_rows()
 {
-  for (int y = 0; y < 24; y++)
+  for (int y = 0; y < E.screenrows; y++)
   {
     write(STDOUT_FILENO, "~\r\n", 3);
   }
@@ -172,9 +204,23 @@ void editor_refresh_screen()
 
 /*** INIT ***/
 
+/**
+ * @brief Initialize the global editor state variable
+ */
+void init_editor()
+{
+  if (get_window_size(&E.screenrows, &E.screencols) == -1)
+  {
+    die("get_window_size");
+  }
+}
+
 int main()
 {
+  /* enable the raw mode */
   enable_raw_mode();
+  /* initialize the editor */
+  init_editor();
 
   while (1)
   {
