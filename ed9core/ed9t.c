@@ -420,6 +420,8 @@ void ab_free(AppendBuffer *ab)
  */
 void editor_move_cursor(int key)
 {
+  EditorRow *row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+
   switch (key)
   {
   case ARROW_UP:
@@ -439,13 +441,30 @@ void editor_move_cursor(int key)
     {
       E.cx--;
     }
+    else if (E.cy > 0)
+    {
+      E.cy--;
+      E.cx = E.row[E.cy].size;
+    }
     break;
   case ARROW_RIGHT:
-    // if (E.cx != E.screencols - 1)
-    // {
-    E.cx++;
-    // }
+    if (row && E.cx < row->size)
+    {
+      E.cx++;
+    }
+    else if (row && E.cx == row->size)
+    {
+      E.cy++;
+      E.cx = 0;
+    }
     break;
+  }
+
+  row = (E.cy >= E.numrows) ? NULL : &E.row[E.cy];
+  int rowlen = row ? row->size : 0;
+  if (E.cx > rowlen)
+  {
+    E.cx = rowlen;
   }
 }
 
