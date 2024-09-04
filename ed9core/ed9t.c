@@ -41,6 +41,8 @@ that sets the first 3 bits to 0
 
 #define ED9T_TAB_STOP 8
 
+#define ED9T_QUIT_TIMES 3
+
 /* special editor keys enum */
 typedef enum
 {
@@ -624,6 +626,7 @@ void editor_move_cursor(int key)
  */
 void editor_process_keypress()
 {
+  static int quit_times = ED9T_QUIT_TIMES;
   int c = editor_read_key();
 
   switch (c)
@@ -632,6 +635,15 @@ void editor_process_keypress()
     /* TODO */
     break;
   case CTRL_KEY('q'):
+    if (E.dirty && quit_times > 0)
+    {
+      editor_set_status_message("WARNING!!! File has unsaved changes. "
+                                "Press Ctrl-Q %d more times to quit.",
+                                quit_times);
+      quit_times--;
+      return;
+    }
+
     /* clear the screen with the J command and argument 2 */
     write(STDOUT_FILENO, "\x1b[2J", 4);
     /* reposition the cursor to the top left with the H command */
@@ -703,6 +715,8 @@ void editor_process_keypress()
     editor_insert_char(c);
     break;
   }
+
+  quit_times = ED9T_QUIT_TIMES;
 }
 
 /*** OUTPUT ***/
