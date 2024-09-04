@@ -37,6 +37,7 @@ typedef enum
   ARROW_RIGHT,
   ARROW_UP,
   ARROW_DOWN,
+  DEL_KEY,
   HOME_KEY,
   END_KEY,
   PAGE_UP,
@@ -143,6 +144,8 @@ int editor_read_key()
   also read PGUP and PGDOWN keys in the form of Esc[5~ and Esc[6~
 
   The Home key could be sent as <esc>[1~, <esc>[7~, <esc>[H, or <esc>OH. Similarly, the End key could be sent as <esc>[4~, <esc>[8~, <esc>[F, or <esc>OF.
+
+  The DEL key could be sent as <Esc>[3~.
   */
   if (c == '\x1b')
   {
@@ -169,6 +172,8 @@ int editor_read_key()
           {
           case '1':
             return HOME_KEY;
+          case '3':
+            return DEL_KEY;
           case '4':
             return END_KEY;
           case '5':
