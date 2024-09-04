@@ -43,6 +43,7 @@ that sets the first 3 bits to 0
 /* special editor keys enum */
 typedef enum
 {
+  BACKSPACE = 127,
   ARROW_LEFT = 1000,
   ARROW_RIGHT,
   ARROW_UP,
@@ -567,6 +568,9 @@ void editor_process_keypress()
 
   switch (c)
   {
+  case '\r':
+    /* TODO */
+    break;
   case CTRL_KEY('q'):
     /* clear the screen with the J command and argument 2 */
     write(STDOUT_FILENO, "\x1b[2J", 4);
@@ -574,6 +578,12 @@ void editor_process_keypress()
     write(STDOUT_FILENO, "\x1b[H", 3);
 
     exit(0);
+    break;
+
+  case BACKSPACE:
+  case CTRL_KEY('h'):
+  case DEL_KEY:
+    /* TODO */
     break;
 
     /*
@@ -619,6 +629,10 @@ void editor_process_keypress()
   case ARROW_LEFT:
   case ARROW_RIGHT:
     editor_move_cursor(c);
+    break;
+
+  case CTRL_KEY('l'):
+  case '\x1b':
     break;
 
   default:
