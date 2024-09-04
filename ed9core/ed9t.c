@@ -21,6 +21,14 @@ that sets the first 3 bits to 0
 #define ED9T_WELCOME_MESSAGE "ED9T -- version %s"
 #define ED9T_VERSION "0.1.0"
 
+typedef enum
+{
+  ARROW_LEFT = 1000,
+  ARROW_RIGHT,
+  ARROW_UP,
+  ARROW_DOWN
+} EditorKey;
+
 /*** INCLUDES ***/
 #include <ctype.h>
 #include <errno.h>
@@ -36,6 +44,7 @@ that sets the first 3 bits to 0
 /* type for global state of the editor */
 typedef struct
 {
+  int cx, cy;
   int screenrows;
   int screencols;
   struct termios orig_termios;
@@ -111,7 +120,7 @@ void enable_raw_mode()
  *
  * @return char character read from the keypress
  */
-char editor_read_key()
+int editor_read_key()
 {
   int nread;
   char c;
@@ -122,7 +131,42 @@ char editor_read_key()
       die("read");
     }
   }
-  return c;
+
+  /*
+  read the arrow keys in the form of '\x1b[ABCD]'
+  and convert them to wsad keys
+  */
+  if (c == '\x1b')
+  {
+    char seq[3];
+    if (read(STDIN_FILENO, &seq[0], 1) != 1)
+    {
+      return '\x1b';
+    }
+    if (read(STDIN_FILENO, &seq[1], 1) != 1)
+    {
+      return '\x1b';
+    }
+    if (seq[0] == '[')
+    {
+      switch (seq[1])
+      {
+      case 'A':
+        return ARROW_UP;
+      case 'B':
+        return ARROW_DOWN;
+      case 'C':
+        return ARROW_RIGHT;
+      case 'D':
+        return ARROW_LEFT;
+      }
+    }
+    return '\x1b';
+  }
+  else
+  {
+    return c;
+  }
 }
 
 /**
@@ -258,12 +302,48 @@ void ab_free(AppendBuffer *ab)
 /*** INPUT ***/
 
 /**
+ * @brief Move the cursor based on which key is pressed
+ *
+ * @param
+ */
+void editor_move_cursor(int key)
+{
+  switch (key)
+  {
+  case ARROW_UP:
+    if (E.cy != 0)
+    {
+      E.cy--;
+    }
+    break;
+  case ARROW_DOWN:
+    if (E.cy != E.screenrows - 1)
+    {
+      E.cy++;
+    }
+    break;
+  case ARROW_LEFT:
+    if (E.cx != 0)
+    {
+      E.cx--;
+    }
+    break;
+  case ARROW_RIGHT:
+    if (E.cx != E.screencols - 1)
+    {
+      E.cx++;
+    }
+    break;
+  }
+}
+
+/**
  * @brief read the editor keypress and process it
  * to convert it to editor commands
  */
 void editor_process_keypress()
 {
-  char c = editor_read_key();
+  int c = editor_read_key();
 
   switch (c)
   {
@@ -274,6 +354,13 @@ void editor_process_keypress()
     write(STDOUT_FILENO, "\x1b[H", 3);
 
     exit(0);
+    break;
+
+  case ARROW_UP:
+  case ARROW_DOWN:
+  case ARROW_LEFT:
+  case ARROW_RIGHT:
+    editor_move_cursor(c);
     break;
   }
 }
@@ -340,8 +427,16 @@ void editor_refresh_screen()
 
   editor_draw_rows(&ab);
 
+  /*
+  move the cursor to position given by the editor config
+  we use the H command with the column and row as arguments
+  */
+  char buf[32];
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+  ab_append(&ab, buf, strlen(buf));
+
   /* reposition the cursor to the top left with the H command */
-  ab_append(&ab, "\x1b[H", 3);
+  // ab_append(&ab, "\x1b[H", 3);
   /* show the cursor using ?25h */
   ab_append(&ab, "\x1b[?25h", 6);
 
@@ -357,6 +452,9 @@ void editor_refresh_screen()
  */
 void init_editor()
 {
+  E.cx = 0;
+  E.cy = 0;
+
   if (get_window_size(&E.screenrows, &E.screencols) == -1)
   {
     die("get_window_size");
