@@ -63,6 +63,7 @@ typedef struct
 typedef struct
 {
   int cx, cy;
+  int rowoff;
   int screenrows;
   int screencols;
   int numrows;
@@ -427,7 +428,7 @@ void editor_move_cursor(int key)
     }
     break;
   case ARROW_DOWN:
-    if (E.cy != E.screenrows - 1)
+    if (E.cy < E.numrows)
     {
       E.cy++;
     }
@@ -499,6 +500,18 @@ void editor_process_keypress()
 
 /*** OUTPUT ***/
 
+void editor_scroll()
+{
+  if (E.cy < E.rowoff)
+  {
+    E.rowoff = E.cy;
+  }
+  if (E.cy >= E.rowoff + E.screenrows)
+  {
+    E.rowoff = E.cy - E.screenrows + 1;
+  }
+}
+
 /**
  * @brief Draw the rows of the editor
  *
@@ -508,7 +521,8 @@ void editor_draw_rows(AppendBuffer *ab)
 {
   for (int y = 0; y < E.screenrows; y++)
   {
-    if (y >= E.numrows)
+    int filerow = y + E.rowoff;
+    if (filerow >= E.numrows)
     {
       if (E.numrows == 0 && y == E.screenrows / 3)
       {
@@ -537,12 +551,12 @@ void editor_draw_rows(AppendBuffer *ab)
     }
     else
     {
-      int len = E.row[y].size;
+      int len = E.row[filerow].size;
       if (len > E.screencols)
       {
         len = E.screencols;
       }
-      ab_append(ab, E.row[y].chars, len);
+      ab_append(ab, E.row[filerow].chars, len);
     }
 
     /* clear the line with the K command and argument 0 */
@@ -561,6 +575,9 @@ void editor_draw_rows(AppendBuffer *ab)
  */
 void editor_refresh_screen()
 {
+  /* initialize the editor scroll */
+  editor_scroll();
+
   AppendBuffer ab = ABUF_INIT;
 
   /* hide the cursor using ?25l */
@@ -577,7 +594,7 @@ void editor_refresh_screen()
   we use the H command with the column and row as arguments
   */
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", E.cy + 1, E.cx + 1);
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
   ab_append(&ab, buf, strlen(buf));
 
   /* reposition the cursor to the top left with the H command */
@@ -599,6 +616,7 @@ void init_editor()
 {
   E.cx = 0;
   E.cy = 0;
+  E.rowoff = 0;
   E.numrows = 0;
   E.row = NULL;
 
