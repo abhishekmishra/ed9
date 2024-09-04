@@ -36,6 +36,9 @@ that sets the first 3 bits to 0
 #define ED9T_WELCOME_MESSAGE "ED9T -- version %s"
 #define ED9T_VERSION "0.1.0"
 
+#define ED9T_TAB_STOP 8
+
+
 /* special editor keys enum */
 typedef enum
 {
@@ -56,13 +59,16 @@ typedef enum
 typedef struct
 {
   int size;
+  int rsize;
   char *chars;
+  char *render;
 } EditorRow;
 
 /* type for global state of the editor */
 typedef struct
 {
   int cx, cy;
+  int rx;
   int rowoff;
   int coloff;
   int screenrows;
@@ -333,6 +339,51 @@ int get_window_size(int *rows, int *cols)
 
 /*** ROW OPERATIONS ***/
 
+int editor_row_cx_to_rx(EditorRow *row, int cx) {
+  int rx = 0;
+  int j;
+  for (j = 0; j < cx; j++) {
+    if (row->chars[j] == '\t')
+      rx += (ED9T_TAB_STOP - 1) - (rx % ED9T_TAB_STOP);
+    rx++;
+  }
+  return rx;
+}
+
+
+void editor_update_row(EditorRow *row)
+{
+  int tabs = 0;
+  int j;
+  for (j = 0; j < row->size; j++)
+  {
+    if (row->chars[j] == '\t')
+      tabs++;
+  }
+
+  free(row->render);
+  row->render = malloc(row->size + tabs * (ED9T_TAB_STOP - 1) + 1);
+
+  int idx = 0;
+  for (j = 0; j < row->size; j++)
+  {
+    if (row->chars[j] == '\t')
+    {
+      row->render[idx++] = ' ';
+      while (idx % ED9T_TAB_STOP != 0)
+      {
+        row->render[idx++] = ' ';
+      }
+    }
+    else
+    {
+      row->render[idx++] = row->chars[j];
+    }
+  }
+  row->render[idx] = '\0';
+  row->rsize = idx;
+}
+
 void editor_append_row(char *s, size_t len)
 {
   E.row = realloc(E.row, sizeof(EditorRow) * (E.numrows + 1));
@@ -341,6 +392,11 @@ void editor_append_row(char *s, size_t len)
   E.row[at].chars = malloc(len + 1);
   memcpy(E.row[at].chars, s, len);
   E.row[at].chars[len] = '\0';
+
+  E.row[at].rsize = 0;
+  E.row[at].render = NULL;
+  editor_update_row(&E.row[at]);
+
   E.numrows++;
 }
 
@@ -522,6 +578,12 @@ void editor_process_keypress()
 
 void editor_scroll()
 {
+  E.rx = 0;
+  if (E.cy < E.numrows)
+  {
+    E.rx = editor_row_cx_to_rx(&E.row[E.cy], E.cx);
+  }
+
   if (E.cy < E.rowoff)
   {
     E.rowoff = E.cy;
@@ -530,13 +592,13 @@ void editor_scroll()
   {
     E.rowoff = E.cy - E.screenrows + 1;
   }
-  if (E.cx < E.coloff)
+  if (E.rx < E.coloff)
   {
-    E.coloff = E.cx;
+    E.coloff = E.rx;
   }
-  if (E.cx >= E.coloff + E.screencols)
+  if (E.rx >= E.coloff + E.screencols)
   {
-    E.coloff = E.cx - E.screencols + 1;
+    E.coloff = E.rx - E.screencols + 1;
   }
 }
 
@@ -579,7 +641,7 @@ void editor_draw_rows(AppendBuffer *ab)
     }
     else
     {
-      int len = E.row[filerow].size - E.coloff;
+      int len = E.row[filerow].rsize - E.coloff;
       if (len < 0)
       {
         len = 0;
@@ -588,7 +650,7 @@ void editor_draw_rows(AppendBuffer *ab)
       {
         len = E.screencols;
       }
-      ab_append(ab, &E.row[filerow].chars[E.coloff], len);
+      ab_append(ab, &E.row[filerow].render[E.coloff], len);
     }
 
     /* clear the line with the K command and argument 0 */
@@ -626,7 +688,7 @@ void editor_refresh_screen()
   we use the H command with the column and row as arguments
   */
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx - E.coloff) + 1);
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.rx - E.coloff) + 1);
   ab_append(&ab, buf, strlen(buf));
 
   /* reposition the cursor to the top left with the H command */
@@ -648,6 +710,7 @@ void init_editor()
 {
   E.cx = 0;
   E.cy = 0;
+  E.rx = 0;
   E.rowoff = 0;
   E.coloff = 0;
   E.numrows = 0;
