@@ -38,7 +38,6 @@ that sets the first 3 bits to 0
 
 #define ED9T_TAB_STOP 8
 
-
 /* special editor keys enum */
 typedef enum
 {
@@ -339,17 +338,18 @@ int get_window_size(int *rows, int *cols)
 
 /*** ROW OPERATIONS ***/
 
-int editor_row_cx_to_rx(EditorRow *row, int cx) {
+int editor_row_cx_to_rx(EditorRow *row, int cx)
+{
   int rx = 0;
   int j;
-  for (j = 0; j < cx; j++) {
+  for (j = 0; j < cx; j++)
+  {
     if (row->chars[j] == '\t')
       rx += (ED9T_TAB_STOP - 1) - (rx % ED9T_TAB_STOP);
     rx++;
   }
   return rx;
 }
-
 
 void editor_update_row(EditorRow *row)
 {
@@ -550,6 +550,19 @@ void editor_process_keypress()
   case PAGE_UP:
   case PAGE_DOWN:
   {
+    if (c == PAGE_UP)
+    {
+      E.cy = E.rowoff;
+    }
+    else if (c == PAGE_DOWN)
+    {
+      E.cy = E.rowoff + E.screenrows - 1;
+      if (E.cy > E.numrows)
+      {
+        E.cy = E.numrows;
+      }
+    }
+
     int times = E.screenrows;
     while (times--)
     {
