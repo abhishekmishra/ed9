@@ -74,6 +74,7 @@ typedef struct
   int screencols;
   int numrows;
   EditorRow *row;
+  char *filename;
   struct termios orig_termios;
 } EditorConfig;
 
@@ -404,6 +405,9 @@ void editor_append_row(char *s, size_t len)
 
 void editor_open(char *filename)
 {
+  free(E.filename);
+  E.filename = strdup(filename);
+
   FILE *fp = fopen(filename, "r");
   if (!fp)
   {
@@ -672,12 +676,45 @@ void editor_draw_rows(AppendBuffer *ab)
     /* clear the line with the K command and argument 0 */
     ab_append(ab, "\x1b[K", 3);
 
-    /* write the crlf for all but the last line */
-    if (y < E.screenrows - 1)
+    /* move the cursor to the next line */
+    ab_append(ab, "\r\n", 2);
+  }
+}
+
+void editor_draw_status_bar(AppendBuffer *ab)
+{
+  /*
+  set the properties of the terminal such that
+  the status bar appears different from the rest of the text
+  */
+  ab_append(ab, "\x1b[7m", 4);
+
+  /* create the status bar text */
+  char status[80], rstatus[80];
+  int len = snprintf(status, sizeof(status), "%.20s - %d lines",
+                     E.filename ? E.filename : "[No Name]", E.numrows);
+  int rlen = snprintf(rstatus, sizeof(rstatus), "%d/%d",
+                      E.cy + 1, E.numrows);
+  if (len > E.screencols)
+  {
+    len = E.screencols;
+  }
+  ab_append(ab, status, len);
+
+  while (len < E.screencols)
+  {
+    if (E.screencols - len == rlen)
     {
-      ab_append(ab, "\r\n", 2);
+      ab_append(ab, rstatus, rlen);
+      break;
+    }
+    else
+    {
+      ab_append(ab, " ", 1);
+      len++;
     }
   }
+  ab_append(ab, "\x1b[m", 3);
 }
 
 /**
@@ -698,6 +735,9 @@ void editor_refresh_screen()
   ab_append(&ab, "\x1b[H", 3);
 
   editor_draw_rows(&ab);
+
+  /* draw the status bar */
+  editor_draw_status_bar(&ab);
 
   /*
   move the cursor to position given by the editor config
@@ -731,11 +771,15 @@ void init_editor()
   E.coloff = 0;
   E.numrows = 0;
   E.row = NULL;
+  E.filename = NULL;
 
   if (get_window_size(&E.screenrows, &E.screencols) == -1)
   {
     die("get_window_size");
   }
+
+  /* make space for the status bar */
+  E.screenrows -= 1;
 }
 
 int main(int argc, char *argv[])
