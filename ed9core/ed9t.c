@@ -476,7 +476,6 @@ void editor_open(char *filename)
   char *line = NULL;
   size_t linecap = 0;
   ssize_t linelen;
-  linelen = getline(&line, &linecap, fp);
   while ((linelen = getline(&line, &linecap, fp)) != -1)
   {
     while (linelen > 0 && (line[linelen - 1] == '\n' ||
@@ -484,7 +483,6 @@ void editor_open(char *filename)
     {
       linelen--;
     }
-
     editor_append_row(line, linelen);
   }
   free(line);
