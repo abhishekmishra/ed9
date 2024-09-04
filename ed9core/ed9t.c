@@ -16,6 +16,7 @@
 
 #include <ctype.h>
 #include <errno.h>
+#include <fcntl.h>
 #include <stdio.h>
 #include <stdarg.h>
 #include <stdlib.h>
@@ -85,6 +86,9 @@ typedef struct
 
 /* global editor configuration */
 EditorConfig E;
+
+/*** PROTOTYPES ***/
+void editor_set_status_message(const char *fmt, ...);
 
 /*** TERMINAL ***/
 void die(const char *s)
@@ -433,6 +437,32 @@ void editor_insert_char(int c)
 
 /*** FILE I/O ***/
 
+char *editor_rows_to_string(int *buflen)
+{
+  int totlen = 0;
+  int j;
+  for (j = 0; j < E.numrows; j++)
+  {
+    totlen += E.row[j].size + 1;
+  }
+  *buflen = totlen;
+  char *buf = malloc(totlen);
+  char *p = buf;
+  for (j = 0; j < E.numrows; j++)
+  {
+    memcpy(p, E.row[j].chars, E.row[j].size);
+    p += E.row[j].size;
+    *p = '\n';
+    p++;
+  }
+  return buf;
+}
+
+/**
+ * @brief Open a file in the editor
+ *
+ * @param filename name of the file to open
+ */
 void editor_open(char *filename)
 {
   free(E.filename);
@@ -459,6 +489,33 @@ void editor_open(char *filename)
   }
   free(line);
   fclose(fp);
+}
+
+void editor_save()
+{
+  if (E.filename == NULL)
+  {
+    return;
+  }
+  int len;
+  char *buf = editor_rows_to_string(&len);
+  int fd = open(E.filename, O_RDWR | O_CREAT, 0644);
+  if (fd != -1)
+  {
+    if (ftruncate(fd, len) != -1)
+    {
+      if (write(fd, buf, len) == len)
+      {
+        close(fd);
+        free(buf);
+        editor_set_status_message("%d bytes written to disk", len);
+        return;
+      }
+    }
+    close(fd);
+  }
+  free(buf);
+  editor_set_status_message("Can't save! I/O error: %s", strerror(errno));
 }
 
 /*** APPEND BUFFER ***/
@@ -578,6 +635,10 @@ void editor_process_keypress()
     write(STDOUT_FILENO, "\x1b[H", 3);
 
     exit(0);
+    break;
+
+  case CTRL_KEY('s'):
+    editor_save();
     break;
 
   case BACKSPACE:
@@ -870,7 +931,7 @@ int main(int argc, char *argv[])
     editor_open(argv[1]);
   }
 
-  editor_set_status_message("HELP: Ctrl-Q = quit");
+  editor_set_status_message("HELP: Ctrl-Q = quit | Ctrl-S = save");
 
   while (1)
   {
