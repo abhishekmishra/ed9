@@ -8,13 +8,19 @@
  * @copyright Copyright (c) 2024
  *
  */
+
 /*** INCLUDES ***/
+#define _DEFAULT_SOURCE
+#define _BSD_SOURCE
+#define _GNU_SOURCE
+
 #include <ctype.h>
 #include <errno.h>
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
 #include <sys/ioctl.h>
+#include <sys/types.h>
 #include <termios.h>
 #include <unistd.h>
 
@@ -46,12 +52,21 @@ typedef enum
 
 /*** DATA ***/
 
+/* type for one row of data */
+typedef struct
+{
+  int size;
+  char *chars;
+} EditorRow;
+
 /* type for global state of the editor */
 typedef struct
 {
   int cx, cy;
   int screenrows;
   int screencols;
+  int numrows;
+  EditorRow *row;
   struct termios orig_termios;
 } EditorConfig;
 
@@ -205,7 +220,9 @@ int editor_read_key()
           return END_KEY;
         }
       }
-    } else if (seq[0] == 'O') {
+    }
+    else if (seq[0] == 'O')
+    {
       switch (seq[1])
       {
       case 'H':
@@ -310,6 +327,46 @@ int get_window_size(int *rows, int *cols)
     *rows = ws.ws_row;
     return 0;
   }
+}
+
+/*** ROW OPERATIONS ***/
+
+void editor_append_row(char *s, size_t len)
+{
+  E.row = realloc(E.row, sizeof(EditorRow) * (E.numrows + 1));
+  int at = E.numrows;
+  E.row[at].size = len;
+  E.row[at].chars = malloc(len + 1);
+  memcpy(E.row[at].chars, s, len);
+  E.row[at].chars[len] = '\0';
+  E.numrows++;
+}
+
+/*** FILE I/O ***/
+
+void editor_open(char *filename)
+{
+  FILE *fp = fopen(filename, "r");
+  if (!fp)
+  {
+    die("fopen");
+  }
+  char *line = NULL;
+  size_t linecap = 0;
+  ssize_t linelen;
+  linelen = getline(&line, &linecap, fp);
+  while ((linelen = getline(&line, &linecap, fp)) != -1)
+  {
+    while (linelen > 0 && (line[linelen - 1] == '\n' ||
+                           line[linelen - 1] == '\r'))
+    {
+      linelen--;
+    }
+
+    editor_append_row(line, linelen);
+  }
+  free(line);
+  fclose(fp);
 }
 
 /*** APPEND BUFFER ***/
@@ -451,30 +508,43 @@ void editor_draw_rows(AppendBuffer *ab)
 {
   for (int y = 0; y < E.screenrows; y++)
   {
-    if (y == E.screenrows / 3)
+    if (y >= E.numrows)
     {
-      char welcome[80];
-      int welcomelen = snprintf(welcome, sizeof(welcome), ED9T_WELCOME_MESSAGE, ED9T_VERSION);
-      if (welcomelen > E.screencols)
+      if (E.numrows == 0 && y == E.screenrows / 3)
       {
-        welcomelen = E.screencols;
+        char welcome[80];
+        int welcomelen = snprintf(welcome, sizeof(welcome), ED9T_WELCOME_MESSAGE, ED9T_VERSION);
+        if (welcomelen > E.screencols)
+        {
+          welcomelen = E.screencols;
+        }
+        int padding = (E.screencols - welcomelen) / 2;
+        if (padding)
+        {
+          ab_append(ab, "~", 1);
+          padding--;
+        }
+        while (padding--)
+        {
+          ab_append(ab, " ", 1);
+        }
+        ab_append(ab, welcome, welcomelen);
       }
-      int padding = (E.screencols - welcomelen) / 2;
-      if (padding)
+      else
       {
         ab_append(ab, "~", 1);
-        padding--;
       }
-      while (padding--)
-      {
-        ab_append(ab, " ", 1);
-      }
-      ab_append(ab, welcome, welcomelen);
     }
     else
     {
-      ab_append(ab, "~", 1);
+      int len = E.row[y].size;
+      if (len > E.screencols)
+      {
+        len = E.screencols;
+      }
+      ab_append(ab, E.row[y].chars, len);
     }
+
     /* clear the line with the K command and argument 0 */
     ab_append(ab, "\x1b[K", 3);
 
@@ -529,6 +599,8 @@ void init_editor()
 {
   E.cx = 0;
   E.cy = 0;
+  E.numrows = 0;
+  E.row = NULL;
 
   if (get_window_size(&E.screenrows, &E.screencols) == -1)
   {
@@ -536,12 +608,17 @@ void init_editor()
   }
 }
 
-int main()
+int main(int argc, char *argv[])
 {
   /* enable the raw mode */
   enable_raw_mode();
   /* initialize the editor */
   init_editor();
+  /* open a file */
+  if (argc >= 2)
+  {
+    editor_open(argv[1]);
+  }
 
   while (1)
   {
