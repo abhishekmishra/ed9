@@ -282,15 +282,37 @@ void editor_process_keypress()
 
 /**
  * @brief Draw the rows of the editor
- * 
+ *
  * @param ab pointer to the append buffer
  */
 void editor_draw_rows(AppendBuffer *ab)
 {
   for (int y = 0; y < E.screenrows; y++)
   {
-    ab_append(ab, "~", 1);
-
+    if (y == E.screenrows / 3)
+    {
+      char welcome[80];
+      int welcomelen = snprintf(welcome, sizeof(welcome), ED9T_WELCOME_MESSAGE, ED9T_VERSION);
+      if (welcomelen > E.screencols)
+      {
+        welcomelen = E.screencols;
+      }
+      int padding = (E.screencols - welcomelen) / 2;
+      if (padding)
+      {
+        ab_append(ab, "~", 1);
+        padding--;
+      }
+      while (padding--)
+      {
+        ab_append(ab, " ", 1);
+      }
+      ab_append(ab, welcome, welcomelen);
+    }
+    else
+    {
+      ab_append(ab, "~", 1);
+    }
     /* clear the line with the K command and argument 0 */
     ab_append(ab, "\x1b[K", 3);
 
