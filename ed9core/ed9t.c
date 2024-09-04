@@ -64,6 +64,7 @@ typedef struct
 {
   int cx, cy;
   int rowoff;
+  int coloff;
   int screenrows;
   int screencols;
   int numrows;
@@ -440,10 +441,10 @@ void editor_move_cursor(int key)
     }
     break;
   case ARROW_RIGHT:
-    if (E.cx != E.screencols - 1)
-    {
-      E.cx++;
-    }
+    // if (E.cx != E.screencols - 1)
+    // {
+    E.cx++;
+    // }
     break;
   }
 }
@@ -510,6 +511,14 @@ void editor_scroll()
   {
     E.rowoff = E.cy - E.screenrows + 1;
   }
+  if (E.cx < E.coloff)
+  {
+    E.coloff = E.cx;
+  }
+  if (E.cx >= E.coloff + E.screencols)
+  {
+    E.coloff = E.cx - E.screencols + 1;
+  }
 }
 
 /**
@@ -551,12 +560,16 @@ void editor_draw_rows(AppendBuffer *ab)
     }
     else
     {
-      int len = E.row[filerow].size;
+      int len = E.row[filerow].size - E.coloff;
+      if (len < 0)
+      {
+        len = 0;
+      }
       if (len > E.screencols)
       {
         len = E.screencols;
       }
-      ab_append(ab, E.row[filerow].chars, len);
+      ab_append(ab, &E.row[filerow].chars[E.coloff], len);
     }
 
     /* clear the line with the K command and argument 0 */
@@ -594,7 +607,7 @@ void editor_refresh_screen()
   we use the H command with the column and row as arguments
   */
   char buf[32];
-  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, E.cx + 1);
+  snprintf(buf, sizeof(buf), "\x1b[%d;%dH", (E.cy - E.rowoff) + 1, (E.cx - E.coloff) + 1);
   ab_append(&ab, buf, strlen(buf));
 
   /* reposition the cursor to the top left with the H command */
@@ -617,6 +630,7 @@ void init_editor()
   E.cx = 0;
   E.cy = 0;
   E.rowoff = 0;
+  E.coloff = 0;
   E.numrows = 0;
   E.row = NULL;
 
