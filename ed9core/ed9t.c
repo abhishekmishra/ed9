@@ -37,6 +37,8 @@ typedef enum
   ARROW_RIGHT,
   ARROW_UP,
   ARROW_DOWN,
+  HOME_KEY,
+  END_KEY,
   PAGE_UP,
   PAGE_DOWN
 } EditorKey;
@@ -139,6 +141,8 @@ int editor_read_key()
   and convert them to wsad keys
 
   also read PGUP and PGDOWN keys in the form of Esc[5~ and Esc[6~
+
+  The Home key could be sent as <esc>[1~, <esc>[7~, <esc>[H, or <esc>OH. Similarly, the End key could be sent as <esc>[4~, <esc>[8~, <esc>[F, or <esc>OF.
   */
   if (c == '\x1b')
   {
@@ -163,16 +167,23 @@ int editor_read_key()
         {
           switch (seq[1])
           {
+          case '1':
+            return HOME_KEY;
+          case '4':
+            return END_KEY;
           case '5':
             return PAGE_UP;
           case '6':
             return PAGE_DOWN;
+          case '7':
+            return HOME_KEY;
+          case '8':
+            return END_KEY;
           }
         }
       }
       else
       {
-
         switch (seq[1])
         {
         case 'A':
@@ -183,7 +194,19 @@ int editor_read_key()
           return ARROW_RIGHT;
         case 'D':
           return ARROW_LEFT;
+        case 'H':
+          return HOME_KEY;
+        case 'F':
+          return END_KEY;
         }
+      }
+    } else if (seq[0] == 'O') {
+      switch (seq[1])
+      {
+      case 'H':
+        return HOME_KEY;
+      case 'F':
+        return END_KEY;
       }
     }
     return '\x1b';
@@ -395,6 +418,13 @@ void editor_process_keypress()
     }
   }
   break;
+
+  case HOME_KEY:
+    E.cx = 0;
+    break;
+  case END_KEY:
+    E.cx = E.screencols - 1;
+    break;
 
   case ARROW_UP:
   case ARROW_DOWN:
