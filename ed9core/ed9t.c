@@ -8,6 +8,15 @@
  * @copyright Copyright (c) 2024
  *
  */
+/*** INCLUDES ***/
+#include <ctype.h>
+#include <errno.h>
+#include <stdio.h>
+#include <stdlib.h>
+#include <string.h>
+#include <sys/ioctl.h>
+#include <termios.h>
+#include <unistd.h>
 
 /*** DEFINES ***/
 
@@ -21,23 +30,16 @@ that sets the first 3 bits to 0
 #define ED9T_WELCOME_MESSAGE "ED9T -- version %s"
 #define ED9T_VERSION "0.1.0"
 
+/* special editor keys enum */
 typedef enum
 {
   ARROW_LEFT = 1000,
   ARROW_RIGHT,
   ARROW_UP,
-  ARROW_DOWN
+  ARROW_DOWN,
+  PAGE_UP,
+  PAGE_DOWN
 } EditorKey;
-
-/*** INCLUDES ***/
-#include <ctype.h>
-#include <errno.h>
-#include <stdio.h>
-#include <stdlib.h>
-#include <string.h>
-#include <sys/ioctl.h>
-#include <termios.h>
-#include <unistd.h>
 
 /*** DATA ***/
 
@@ -135,6 +137,8 @@ int editor_read_key()
   /*
   read the arrow keys in the form of '\x1b[ABCD]'
   and convert them to wsad keys
+
+  also read PGUP and PGDOWN keys in the form of Esc[5~ and Esc[6~
   */
   if (c == '\x1b')
   {
@@ -149,16 +153,37 @@ int editor_read_key()
     }
     if (seq[0] == '[')
     {
-      switch (seq[1])
+      if (seq[1] >= '0' && seq[1] <= '9')
       {
-      case 'A':
-        return ARROW_UP;
-      case 'B':
-        return ARROW_DOWN;
-      case 'C':
-        return ARROW_RIGHT;
-      case 'D':
-        return ARROW_LEFT;
+        if (read(STDIN_FILENO, &seq[2], 1) != 1)
+        {
+          return '\x1b';
+        }
+        if (seq[2] == '~')
+        {
+          switch (seq[1])
+          {
+          case '5':
+            return PAGE_UP;
+          case '6':
+            return PAGE_DOWN;
+          }
+        }
+      }
+      else
+      {
+
+        switch (seq[1])
+        {
+        case 'A':
+          return ARROW_UP;
+        case 'B':
+          return ARROW_DOWN;
+        case 'C':
+          return ARROW_RIGHT;
+        case 'D':
+          return ARROW_LEFT;
+        }
       }
     }
     return '\x1b';
@@ -355,6 +380,21 @@ void editor_process_keypress()
 
     exit(0);
     break;
+
+    /*
+    pageup and pagedown move the cursor to top and bottom
+    of the screen
+    */
+  case PAGE_UP:
+  case PAGE_DOWN:
+  {
+    int times = E.screenrows;
+    while (times--)
+    {
+      editor_move_cursor(c == PAGE_UP ? ARROW_UP : ARROW_DOWN);
+    }
+  }
+  break;
 
   case ARROW_UP:
   case ARROW_DOWN:
