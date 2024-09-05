@@ -699,7 +699,6 @@ void editor_find_callback(char *query, int key)
       break;
     }
   }
-  free(query);
 }
 
 void editor_find()
