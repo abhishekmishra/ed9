@@ -440,6 +440,34 @@ void editor_row_del_char(EditorRow *row, int at)
   E.dirty++;
 }
 
+void editor_free_row(EditorRow *row)
+{
+  free(row->render);
+  free(row->chars);
+}
+
+void editor_del_row(int at)
+{
+  if (at < 0 || at >= E.numrows)
+  {
+    return;
+  }
+  editor_free_row(&E.row[at]);
+  memmove(&E.row[at], &E.row[at + 1], sizeof(EditorRow) * (E.numrows - at - 1));
+  E.numrows--;
+  E.dirty++;
+}
+
+void editor_row_append_string(EditorRow *row, char *s, size_t len)
+{
+  row->chars = realloc(row->chars, row->size + len + 1);
+  memcpy(&row->chars[row->size], s, len);
+  row->size += len;
+  row->chars[row->size] = '\0';
+  editor_update_row(row);
+  E.dirty++;
+}
+
 /*** EDITOR OPERATIONS ***/
 
 void editor_insert_char(int c)
@@ -458,11 +486,24 @@ void editor_del_char()
   {
     return;
   }
+  if (E.cx == 0 && E.cy == 0)
+  {
+    return;
+  }
+
   EditorRow *row = &E.row[E.cy];
+
   if (E.cx > 0)
   {
     editor_row_del_char(row, E.cx - 1);
     E.cx--;
+  }
+  else
+  {
+    E.cx = E.row[E.cy - 1].size;
+    editor_row_append_string(&E.row[E.cy - 1], row->chars, row->size);
+    editor_del_row(E.cy);
+    E.cy--;
   }
 }
 
