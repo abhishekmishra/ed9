@@ -58,6 +58,18 @@ typedef enum
   PAGE_DOWN
 } EditorKey;
 
+typedef enum
+{
+  HL_NORMAL = 0,
+  HL_COMMENT,
+  HL_MLCOMMENT,
+  HL_KEYWORD1,
+  HL_KEYWORD2,
+  HL_STRING,
+  HL_NUMBER,
+  HL_MATCH
+} EditorHighlight;
+
 /*** DATA ***/
 
 /* type for one row of data */
@@ -67,6 +79,7 @@ typedef struct
   int rsize;
   char *chars;
   char *render;
+  unsigned char *hl;
 } EditorRow;
 
 /* type for global state of the editor */
@@ -351,6 +364,44 @@ int get_window_size(int *rows, int *cols)
   }
 }
 
+/*** SYNTAX HIGHLIGHTING ***/
+
+void editor_update_syntax(EditorRow *row)
+{
+  row->hl = realloc(row->hl, row->rsize);
+  memset(row->hl, HL_NORMAL, row->rsize);
+  int i;
+  for (i = 0; i < row->rsize; i++)
+  {
+    if (isdigit(row->render[i]))
+    {
+      row->hl[i] = HL_NUMBER;
+    }
+  }
+}
+
+int editor_syntax_to_color(int hl)
+{
+  switch (hl)
+  {
+  case HL_COMMENT:
+  case HL_MLCOMMENT:
+    return 36;
+  case HL_KEYWORD1:
+    return 33;
+  case HL_KEYWORD2:
+    return 32;
+  case HL_STRING:
+    return 35;
+  case HL_NUMBER:
+    return 31;
+  case HL_MATCH:
+    return 34;
+  default:
+    return 37;
+  }
+}
+
 /*** ROW OPERATIONS ***/
 
 int editor_row_cx_to_rx(EditorRow *row, int cx)
@@ -418,6 +469,8 @@ void editor_update_row(EditorRow *row)
   }
   row->render[idx] = '\0';
   row->rsize = idx;
+
+  editor_update_syntax(row);
 }
 
 void editor_insert_row(int at, char *s, size_t len)
@@ -437,6 +490,7 @@ void editor_insert_row(int at, char *s, size_t len)
 
   E.row[at].rsize = 0;
   E.row[at].render = NULL;
+  E.row[at].hl = NULL;
   editor_update_row(&E.row[at]);
 
   E.numrows++;
@@ -473,6 +527,7 @@ void editor_free_row(EditorRow *row)
 {
   free(row->render);
   free(row->chars);
+  free(row->hl);
 }
 
 void editor_del_row(int at)
@@ -650,6 +705,15 @@ void editor_find_callback(char *query, int key)
   static int last_match = -1;
   static int direction = 1;
 
+  static int saved_hl_line;
+  static char *saved_hl = NULL;
+  if (saved_hl)
+  {
+    memcpy(E.row[saved_hl_line].hl, saved_hl, E.row[saved_hl_line].rsize);
+    free(saved_hl);
+    saved_hl = NULL;
+  }
+
   if (key == '\r' || key == '\x1b')
   {
     last_match = -1;
@@ -696,6 +760,11 @@ void editor_find_callback(char *query, int key)
       E.cy = current;
       E.cx = editor_row_rx_to_cx(row, match - row->render);
       E.rowoff = E.numrows;
+
+      saved_hl_line = current;
+      saved_hl = malloc(row->rsize);
+      memcpy(saved_hl, row->hl, row->rsize);
+      memset(&row->hl[match - row->render], HL_MATCH, strlen(query));
       break;
     }
   }
@@ -1061,7 +1130,35 @@ void editor_draw_rows(AppendBuffer *ab)
       {
         len = E.screencols;
       }
-      ab_append(ab, &E.row[filerow].render[E.coloff], len);
+      char *c = &E.row[filerow].render[E.coloff];
+      unsigned char *hl = &E.row[filerow].hl[E.coloff];
+      int current_color = -1;
+      int j;
+      for (j = 0; j < len; j++)
+      {
+        if (hl[j] == HL_NORMAL)
+        {
+          if (current_color != -1)
+          {
+            ab_append(ab, "\x1b[39m", 5);
+            current_color = -1;
+          }
+          ab_append(ab, &c[j], 1);
+        }
+        else
+        {
+          int color = editor_syntax_to_color(hl[j]);
+          if (color != current_color)
+          {
+            char buf[16];
+            int clen = snprintf(buf, sizeof(buf), "\x1b[%dm", color);
+            ab_append(ab, buf, clen);
+            current_color = color;
+          }
+          ab_append(ab, &c[j], 1);
+        }
+      }
+      ab_append(ab, "\x1b[39m", 5);
     }
 
     /* clear the line with the K command and argument 0 */
