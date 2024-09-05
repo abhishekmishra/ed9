@@ -93,7 +93,7 @@ EditorConfig E;
 /*** PROTOTYPES ***/
 void editor_set_status_message(const char *fmt, ...);
 void editor_refresh_screen();
-char *editor_prompt(char *prompt);
+char *editor_prompt(char *prompt, void (*callback)(char *, int));
 
 /*** TERMINAL ***/
 void die(const char *s)
@@ -614,7 +614,7 @@ void editor_save()
 {
   if (E.filename == NULL)
   {
-    E.filename = editor_prompt("Save as: %s (ESC to cancel)");
+    E.filename = editor_prompt("Save as: %s (ESC to cancel)", NULL);
     if (E.filename == NULL)
     {
       editor_set_status_message("Save aborted");
@@ -645,27 +645,82 @@ void editor_save()
 
 /*** FIND ***/
 
-void editor_find()
+void editor_find_callback(char *query, int key)
 {
-  char *query = editor_prompt("Search: %s (ESC to cancel)");
-  if (query == NULL)
+  static int last_match = -1;
+  static int direction = 1;
+
+  if (key == '\r' || key == '\x1b')
   {
+    last_match = -1;
+    direction = 1;
     return;
   }
+  else if (key == ARROW_RIGHT || key == ARROW_DOWN)
+  {
+    direction = 1;
+  }
+  else if (key == ARROW_LEFT || key == ARROW_UP)
+  {
+    direction = -1;
+  }
+  else
+  {
+    last_match = -1;
+    direction = 1;
+  }
+
+  if (last_match == -1)
+  {
+    direction = 1;
+  }
+  int current = last_match;
+
   int i;
   for (i = 0; i < E.numrows; i++)
   {
-    EditorRow *row = &E.row[i];
+    current += direction;
+    if (current == -1)
+    {
+      current = E.numrows - 1;
+    }
+    else if (current == E.numrows)
+    {
+      current = 0;
+    }
+    EditorRow *row = &E.row[current];
     char *match = strstr(row->render, query);
     if (match)
     {
-      E.cy = i;
+      last_match = current;
+      E.cy = current;
       E.cx = editor_row_rx_to_cx(row, match - row->render);
       E.rowoff = E.numrows;
       break;
     }
   }
   free(query);
+}
+
+void editor_find()
+{
+  int saved_cx = E.cx;
+  int saved_cy = E.cy;
+  int saved_coloff = E.coloff;
+  int saved_rowoff = E.rowoff;
+
+  char *query = editor_prompt("Search: %s (Use ESC/Arrows/Enter)", editor_find_callback);
+  if (query)
+  {
+    free(query);
+  }
+  else
+  {
+    E.cx = saved_cx;
+    E.cy = saved_cy;
+    E.coloff = saved_coloff;
+    E.rowoff = saved_rowoff;
+  }
 }
 
 /*** APPEND BUFFER ***/
@@ -710,7 +765,7 @@ void ab_free(AppendBuffer *ab)
 
 /*** INPUT ***/
 
-char *editor_prompt(char *prompt)
+char *editor_prompt(char *prompt, void (*callback)(char *, int))
 {
   size_t bufsize = 128;
   char *buf = malloc(bufsize);
@@ -729,6 +784,10 @@ char *editor_prompt(char *prompt)
     else if (c == '\x1b')
     {
       editor_set_status_message("");
+      if (callback)
+      {
+        callback(buf, c);
+      }
       free(buf);
       return NULL;
     }
@@ -737,6 +796,10 @@ char *editor_prompt(char *prompt)
       if (buflen != 0)
       {
         editor_set_status_message("");
+        if (callback)
+        {
+          callback(buf, c);
+        }
         return buf;
       }
     }
@@ -749,6 +812,10 @@ char *editor_prompt(char *prompt)
       }
       buf[buflen++] = c;
       buf[buflen] = '\0';
+    }
+    if (callback)
+    {
+      callback(buf, c);
     }
   }
 }
